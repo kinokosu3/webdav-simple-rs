@@ -6,7 +6,8 @@ use axum::{
     http::{Request, Method, Response, StatusCode},
 };
 use std::net::SocketAddr;
-use tower_http::trace::TraceLayer;
+use tower_http::trace::{TraceLayer, DefaultMakeSpan, DefaultOnResponse};
+use tracing::{Level, info, error};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use webdav_rs::{
     backend::fs::FileSystemBackend,
@@ -34,8 +35,15 @@ async fn main() {
             "/*path",
             any(move |method: Method, path: Path<String>, req: Request<Body>| {
                 let handler = handler.clone();
+                let path_str = path.0.clone();
                 async move {
-                    match method.as_str() {
+                    info!(
+                        method = %method,
+                        path = %path_str,
+                        headers = ?req.headers(),
+                        "Handling WebDAV request"
+                    );
+                    let result = match method.as_str() {
                         "PROPFIND" => handler.handle_propfind(path, req).await,
                         "GET" => handler.handle_get(path).await,
                         "PUT" => handler.handle_put(path, req).await,
@@ -50,15 +58,36 @@ async fn main() {
                             .body(Body::empty())
                             .unwrap()),
                         _ => Err(WebDavError::InvalidInput("Method not allowed".to_string())),
+                    };
+
+                    match &result {
+                        Ok(response) => info!(
+                            method = %method,
+                            path = %path_str,
+                            status = ?response.status(),
+                            "Request completed successfully"
+                        ),
+                        Err(e) => error!(
+                            method = %method,
+                            path = %path_str,
+                            error = %e,
+                            "Request failed"
+                        ),
                     }
+
+                    result
                 }
             }),
         )
-        .layer(TraceLayer::new_for_http());
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO))
+        );
 
     // 启动服务器
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    tracing::info!("WebDAV server listening on {}", addr);
+    info!("WebDAV server listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }

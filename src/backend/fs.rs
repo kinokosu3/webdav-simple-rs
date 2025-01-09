@@ -22,7 +22,11 @@ impl FileSystemBackend {
     }
 
     fn resolve_path(&self, path: &PathBuf) -> PathBuf {
-        self.root.join(path.strip_prefix("/").unwrap_or(path))
+        if path.as_os_str().is_empty() {
+            self.root.clone()
+        } else {
+            self.root.join(path.strip_prefix("/").unwrap_or(path))
+        }
     }
 }
 

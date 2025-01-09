@@ -33,7 +33,13 @@ impl<B: Backend> WebDavHandler<B> {
         path: Path<String>,
         _req: Request<Body>,
     ) -> Result<Response<Body>, WebDavError> {
-        let path = std::path::PathBuf::from(path.0);
+        let path_str = path.0.clone();
+        let path = if path_str == "/" {
+            std::path::PathBuf::from("")
+        } else {
+            std::path::PathBuf::from(path_str)
+        };
+
         let resource = self.backend.get_resource(&path).await?;
         
         let mut resources = vec![resource.metadata];
