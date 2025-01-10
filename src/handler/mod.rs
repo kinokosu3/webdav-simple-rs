@@ -102,11 +102,7 @@ impl<B: Backend> WebDavHandler<B> {
         path: Path<String>,
     ) -> Result<Response<Body>, WebDavError> {
         let path = std::path::PathBuf::from(path.0);
-        
-        if self.backend.exists(&path).await? {
-            return Err(WebDavError::AlreadyExists(path));
-        }
-
+        // 判断是否存在应该交给实现判断
         self.backend.create_dir(&path).await?;
 
         Ok(Response::builder()
@@ -120,11 +116,7 @@ impl<B: Backend> WebDavHandler<B> {
         path: Path<String>,
     ) -> Result<Response<Body>, WebDavError> {
         let path = std::path::PathBuf::from(path.0);
-        
-        if !self.backend.exists(&path).await? {
-            return Err(WebDavError::NotFound(path));
-        }
-
+    
         self.backend.delete(&path).await?;
 
         Ok(Response::builder()

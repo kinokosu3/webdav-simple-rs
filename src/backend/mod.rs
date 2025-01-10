@@ -24,8 +24,6 @@ pub struct ResourceInfo {
 
 #[async_trait]
 pub trait Backend: Send + Sync + 'static {
-    /// 检查资源是否存在
-    async fn exists(&self, path: &PathBuf) -> Result<bool, WebDavError>;
 
     /// 获取资源信息
     async fn get_resource(&self, path: &PathBuf) -> Result<ResourceInfo, WebDavError>;

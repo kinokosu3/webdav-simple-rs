@@ -28,13 +28,14 @@ impl FileSystemBackend {
             self.root.join(path.strip_prefix("/").unwrap_or(path))
         }
     }
+    async fn exists(&self, path: &PathBuf) -> Result<bool, WebDavError> {
+        Ok(fs::metadata(path).await.is_ok())
+    }
 }
 
 #[async_trait]
 impl Backend for FileSystemBackend {
-    async fn exists(&self, path: &PathBuf) -> Result<bool, WebDavError> {
-        Ok(fs::metadata(self.resolve_path(path)).await.is_ok())
-    }
+    
 
     async fn get_resource(&self, path: &PathBuf) -> Result<ResourceInfo, WebDavError> {
         let full_path = self.resolve_path(path);
@@ -89,6 +90,10 @@ impl Backend for FileSystemBackend {
         let full_path = self.resolve_path(path);
         if let Some(parent) = full_path.parent() {
             fs::create_dir_all(parent).await?;
+        }
+        println!("full_path: {:?}", self.exists(&full_path).await);
+        if self.exists(&full_path).await? {
+            return Err(WebDavError::AlreadyExists(path.clone()));
         }
         fs::write(&full_path, content).await?;
         Ok(())
