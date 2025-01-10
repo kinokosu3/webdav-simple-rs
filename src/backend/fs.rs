@@ -91,7 +91,6 @@ impl Backend for FileSystemBackend {
         if let Some(parent) = full_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        println!("full_path: {:?}", self.exists(&full_path).await);
         if self.exists(&full_path).await? {
             return Err(WebDavError::AlreadyExists(path.clone()));
         }
