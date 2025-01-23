@@ -26,6 +26,9 @@ pub enum WebDavError {
 
     #[error("Internal server error: {0}")]
     Internal(String),
+
+    #[error("Request error: {0}")]
+    RequestError(#[from] reqwest::Error),
 }
 
 impl WebDavError {
@@ -40,4 +43,4 @@ impl WebDavError {
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
-} 
+}

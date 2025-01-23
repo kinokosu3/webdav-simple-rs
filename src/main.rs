@@ -6,27 +6,35 @@ use axum::{
     http::{Request, Method, Response, StatusCode},
 };
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::trace::{TraceLayer, DefaultMakeSpan, DefaultOnResponse};
 use tracing::{Level, info, error};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use webdav_rs::{
-    backend::fs::FileSystemBackend,
-    handler::WebDavHandler,
-    error::WebDavError,
+    backend::{fs::driver::FileSystemBackend, quark::driver::QuarkBackend, Backend}, error::WebDavError, handler::WebDavHandler
 };
+
+mod config;
+mod logger;
+
+use config::Config;
 
 #[tokio::main]
 async fn main() {
+    // 获取全局配置
+    let config = Config::get();
+    
     // 初始化日志
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    logger::init(config);
+
+    // 打印配置信息
+    info!("配置初始化成功: {:?}", config);
 
     // 创建后端
-    let backend = FileSystemBackend::new("./storage");
+    let backend: Arc<dyn Backend> = if config.storage.backend == "quark" {
+        Arc::new(QuarkBackend::new())
+    } else {
+        Arc::new(FileSystemBackend::new(&config.storage.filesystem.root_path))
+    };
     let handler = WebDavHandler::new(backend);
 
     // 创建路由
@@ -35,6 +43,7 @@ async fn main() {
             "/*path",
             any(move |method: Method, path: Path<String>, req: Request<Body>| {
                 let handler = handler.clone();
+                let prefix = config.server.prefix.clone();
             
                 async move {
                     let path_str = path.0.clone();
@@ -45,11 +54,9 @@ async fn main() {
                         "Handling WebDAV request"
                     );
                     
-
-                
-                let result = if path_str.starts_with("dav/") {
-                    // 去掉dav
-                    let origin_path = Path(path_str.replace("dav/", ""));
+                let result = if path_str.starts_with(&format!("{}/", prefix)) {
+                    // 去掉前缀
+                    let origin_path = Path(path_str.replacen(&format!("{}/", prefix), "", 1));
                     match method.as_str() {
                         "PROPFIND" => handler.handle_propfind(origin_path, req).await,
                         "GET" => handler.handle_get(origin_path).await,
@@ -67,10 +74,9 @@ async fn main() {
                         _ => Err(WebDavError::InvalidInput("Method not allowed".to_string())),
                     }
                 } else {
-                    Err(WebDavError::InvalidInput("Path must start with dav/".to_string()))
+                    Err(WebDavError::InvalidInput(format!("Path must start with {}/", prefix)))
                 };
                     
-
                     match &result {
                         Ok(response) => info!(
                             method = %method,
@@ -97,7 +103,10 @@ async fn main() {
         );
 
     // 启动服务器
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr = SocketAddr::from((
+        config.server.host.parse::<std::net::IpAddr>().expect("Invalid host address"),
+        config.server.port
+    ));
     info!("WebDAV server listening on {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

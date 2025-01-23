@@ -1,12 +1,13 @@
-use std::path::{Path, PathBuf};
 use async_trait::async_trait;
 use bytes::Bytes;
-use tokio::fs;
-use uuid::Uuid;
-use std::pin::Pin;
 use std::future::Future;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use tokio::fs;
+use tokio::io::AsyncRead;
+use uuid::Uuid;
 
-use super::{Backend, ResourceInfo, ResourceMetadata};
+use crate::backend::{Backend, ResourceInfo, ResourceMetadata};
 use crate::error::WebDavError;
 
 #[derive(Clone)]
@@ -28,6 +29,7 @@ impl FileSystemBackend {
             self.root.join(path.strip_prefix("/").unwrap_or(path))
         }
     }
+
     async fn exists(&self, path: &PathBuf) -> Result<bool, WebDavError> {
         Ok(fs::metadata(path).await.is_ok())
     }
@@ -35,8 +37,6 @@ impl FileSystemBackend {
 
 #[async_trait]
 impl Backend for FileSystemBackend {
-    
-
     async fn get_resource(&self, path: &PathBuf) -> Result<ResourceInfo, WebDavError> {
         let full_path = self.resolve_path(path);
         let metadata = fs::metadata(&full_path)
@@ -86,7 +86,11 @@ impl Backend for FileSystemBackend {
         Ok(Bytes::from(content))
     }
 
-    async fn write_file(&self, path: &PathBuf, content: Bytes) -> Result<(), WebDavError> {
+    async fn write_file(
+        &self,
+        path: &PathBuf,
+        mut content: Pin<Box<dyn AsyncRead + Send>>,
+    ) -> Result<(), WebDavError> {
         let full_path = self.resolve_path(path);
         if let Some(parent) = full_path.parent() {
             fs::create_dir_all(parent).await?;
@@ -94,7 +98,8 @@ impl Backend for FileSystemBackend {
         if self.exists(&full_path).await? {
             return Err(WebDavError::AlreadyExists(path.clone()));
         }
-        fs::write(&full_path, content).await?;
+        let mut file = fs::File::create(&full_path).await?;
+        tokio::io::copy(&mut content, &mut file).await?;
         Ok(())
     }
 
@@ -118,7 +123,7 @@ impl Backend for FileSystemBackend {
     async fn copy(&self, from: &PathBuf, to: &PathBuf) -> Result<(), WebDavError> {
         let src_path = self.resolve_path(from);
         let dst_path = self.resolve_path(to);
-        
+
         if let Some(parent) = dst_path.parent() {
             fs::create_dir_all(parent).await?;
         }
@@ -135,7 +140,7 @@ impl Backend for FileSystemBackend {
     async fn move_resource(&self, from: &PathBuf, to: &PathBuf) -> Result<(), WebDavError> {
         let src_path = self.resolve_path(from);
         let dst_path = self.resolve_path(to);
-        
+
         if let Some(parent) = dst_path.parent() {
             fs::create_dir_all(parent).await?;
         }
@@ -148,7 +153,7 @@ impl Backend for FileSystemBackend {
 fn copy_dir_all<'a>(
     src: &'a Path,
     dst: &'a Path,
-) -> Pin<Box<dyn Future<Output = std::io::Result<()>> + Send + 'a>> {
+) -> Pin<Box<dyn Future<Output = Result<(), WebDavError>> + Send + 'a>> {
     Box::pin(async move {
         fs::create_dir_all(&dst).await?;
         let mut read_dir = fs::read_dir(src).await?;
@@ -164,4 +169,4 @@ fn copy_dir_all<'a>(
         }
         Ok(())
     })
-} 
+}

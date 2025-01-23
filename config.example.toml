@@ -1,0 +1,28 @@
+[server]
+# WebDAV 服务器监听地址
+host = "127.0.0.1"
+# WebDAV 服务器端口
+port = 3000
+# WebDAV 路径前缀
+prefix = "dav"
+# 日志级别 (trace, debug, info, warn, error)
+log_level = "info"
+
+[log]
+# 是否保存到文件
+file_enabled = true
+# 日志文件路径
+file_path = "logs/webdav.log"
+
+[storage]
+# 存储后端类型 (filesystem, quark)
+backend = "filesystem"
+
+[storage.filesystem]
+# 文件系统存储根目录
+root_path = "./storage"
+
+[storage.quark]
+# Quark 存储配置
+cookie = ""
+root_id = "0"
