@@ -6,10 +6,9 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use tokio::io::AsyncRead;
 
-use super::handle::list;
 
 pub struct QuarkBackend {
-    path_map: DashMap<String, ResourceMetadata>,
+    pub path_map: DashMap<String, ResourceMetadata>,
 }
 
 impl QuarkBackend {
@@ -23,11 +22,11 @@ impl QuarkBackend {
 #[async_trait]
 impl Backend for QuarkBackend {
     async fn get_resource(&self, path: &PathBuf) -> Result<ResourceInfo, WebDavError> {
-        list(&self.path_map, path.to_str().unwrap()).await
+        self.list(path.to_str().unwrap()).await
     }
 
     async fn read_file(&self, path: &PathBuf) -> Result<Bytes, WebDavError> {
-        todo!()
+        self.get_file(path.to_str().unwrap()).await
     }
 
     async fn write_file(

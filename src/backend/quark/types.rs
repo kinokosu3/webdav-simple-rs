@@ -41,3 +41,16 @@ pub struct List {
     pub updated_at: i64,
     pub created_at: i64,
 }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DownResp {
+    #[serde(flatten)]
+    pub resp: Resp,
+    pub data: Vec<DownData>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DownData {
+    pub download_url: String,
+    pub range_size: i64,
+    pub size: i64,
+}

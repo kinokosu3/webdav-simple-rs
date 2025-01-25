@@ -2,9 +2,23 @@ use once_cell::sync::Lazy;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 
-static GLOBAL_CONFIG: Lazy<Config> =
-    Lazy::new(|| Config::load("config.toml").expect("Failed to load config"));
+static GLOBAL_CONFIG: Lazy<Config> = Lazy::new(|| {
+    let mut config = Config::load("config.toml").expect("Failed to load config");
+    
+    // 如果 temp_path 不存在，设置默认值并创建目录
+    if config.storage.temp_path.is_empty() {
+        config.storage.temp_path = "./temp".to_string();
+    }
+    
+    let temp_path = PathBuf::from(&config.storage.temp_path);
+    if !temp_path.exists() {
+        fs::create_dir_all(&temp_path).expect("Failed to create temp directory");
+    }
+    
+    config
+});
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
@@ -30,6 +44,7 @@ pub struct LogConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
     pub backend: String,
+    pub temp_path: String,
     pub filesystem: FileSystemConfig,
     pub quark: QuarkConfig,
 }

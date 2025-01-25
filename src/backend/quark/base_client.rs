@@ -3,7 +3,7 @@ use reqwest::header::HeaderMap;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-const API_URL: &str = "https://drive-pc.quark.cn/1/clouddrive";
+pub const API_URL: &str = "https://drive-pc.quark.cn/1/clouddrive";
 
 pub async fn base_request<T, F>(
     path: &str,

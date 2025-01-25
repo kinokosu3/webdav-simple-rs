@@ -3,3 +3,4 @@
 storage/*
 config.toml
 logs/*
+temp/*
